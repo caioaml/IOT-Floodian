@@ -56,6 +56,13 @@ Node-RED: Plataforma para exibir dados em tempo real e fornecer visualizações 
 --- 2.2. Imagens e Ilustrações
 Aqui estão algumas imagens que ilustram a solução:
 
+![image](https://github.com/user-attachments/assets/6d6464ee-470e-492c-8781-febef1b2e95e)
+
+![image](https://github.com/user-attachments/assets/4c4c96eb-3b8b-4d1a-98f4-c5c3da3599ff)
+
+![image](https://github.com/user-attachments/assets/2bf813f1-bdf3-413a-81cf-4616cca9bc73)
+
+
 Diagrama do Sistema:
 
 Um diagrama mostrando a conexão entre os sensores, ESP32, MQTT, Node-RED, LEDs e motor.
