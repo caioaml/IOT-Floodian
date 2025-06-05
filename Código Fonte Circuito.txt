@@ -1,0 +1,134 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+// Pinos do sensor ultrasônico e LEDs/motor
+#define PIN_TRIG 26
+#define PIN_ECHO 25
+#define LOWLED   18
+#define MIDLED   19
+#define HIGHLED  21
+#define MOTOR    27
+
+// Config WiFi
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+
+// Config MQTT
+const char* mqtt_server = "test.mosquitto.org";
+const int mqtt_port = 1883;
+const char* mqtt_topic = "floodian/sensor01";
+
+// Variáveis globais
+unsigned int level = 0;
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+// Função para conectar WiFi
+void connectWiFi() {
+  Serial.print("Conectando WiFi");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi conectado");
+  Serial.print("IP ESP32: ");
+  Serial.println(WiFi.localIP());
+}
+
+// Função para conectar MQTT
+void connectMQTT() {
+  while (!client.connected()) {
+    Serial.print("Conectando MQTT...");
+    if (client.connect("ESP32FloodianClient")) {
+      Serial.println("Conectado MQTT");
+    } else {
+      Serial.print("Falha rc=");
+      Serial.print(client.state());
+      Serial.println(" tentando novamente em 5s");
+      delay(5000);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  // Configuração dos pinos
+  pinMode(LOWLED, OUTPUT);
+  pinMode(MIDLED, OUTPUT);
+  pinMode(HIGHLED, OUTPUT);
+  pinMode(MOTOR, OUTPUT);
+  pinMode(PIN_TRIG, OUTPUT);
+  pinMode(PIN_ECHO, INPUT);
+
+  // Inicializa LEDs e motor desligados
+  digitalWrite(LOWLED, LOW);
+  digitalWrite(MIDLED, LOW);
+  digitalWrite(HIGHLED, LOW);
+  digitalWrite(MOTOR, LOW);
+
+  connectWiFi();
+
+  client.setServer(mqtt_server, mqtt_port);
+}
+
+void loop() {
+  if (!client.connected()) {
+    connectMQTT();
+  }
+  client.loop();
+
+  // Medição do sensor ultrasônico
+  digitalWrite(PIN_TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(PIN_TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(PIN_TRIG, LOW);
+
+  int duration = pulseIn(PIN_ECHO, HIGH);
+  level = duration / 58;
+
+  Serial.print("Distância em cm: ");
+  Serial.println(level);
+
+  // Controle dos LEDs e motor conforme nível
+  if (level < 100) {
+    digitalWrite(LOWLED, HIGH);
+    digitalWrite(MIDLED, LOW);
+    digitalWrite(HIGHLED, LOW);
+    digitalWrite(MOTOR, LOW);
+  } else if (level >= 100 && level < 200) {
+    digitalWrite(LOWLED, LOW);
+    digitalWrite(MIDLED, HIGH);
+    digitalWrite(HIGHLED, LOW);
+    digitalWrite(MOTOR, LOW);
+  } else {
+    digitalWrite(LOWLED, LOW);
+    digitalWrite(MIDLED, LOW);
+    digitalWrite(HIGHLED, HIGH);
+    digitalWrite(MOTOR, HIGH);
+  }
+
+  // Define o risco conforme o nível
+  String risco = "baixo";
+  if (level >= 100 && level < 200) {
+    risco = "medio";
+  } else if (level >= 200) {
+    risco = "alto";
+  }
+
+  // Monta o JSON para enviar
+  String payload = "{\"dispositivo\":\"sensor01\",\"nivel_agua_cm\":" + String(level) + ",\"risco\":\"" + risco + "\"}";
+
+  // Publica no MQTT
+  if (client.publish(mqtt_topic, payload.c_str())) {
+    Serial.println("Mensagem MQTT publicada:");
+    Serial.println(payload);
+  } else {
+    Serial.println("Falha ao publicar MQTT");
+  }
+
+  delay(5000);
+}
